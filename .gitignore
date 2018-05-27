@@ -3,3 +3,6 @@ sdkconfig.old
 .cproject
 .project
 .settings/
+.idea/
+cmake-build-debug/
+CMakeLists.txt
