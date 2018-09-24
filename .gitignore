@@ -3,3 +3,5 @@ sdkconfig.old
 .cproject
 .project
 .settings/
+.idea/
+sdkconfig
