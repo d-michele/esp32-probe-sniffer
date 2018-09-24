@@ -12,3 +12,4 @@ esp.sublime-workspace
 esp1.log
 cmake-build-debug/
 CMakeLists.txt
+sdkconfig
