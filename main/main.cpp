@@ -20,8 +20,8 @@
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 
+#include "synchronizeboard.h"
 #include <iostream>
-
 
 /* The examples use simple WiFi configuration that you can set via
    'make menuconfig'.
@@ -29,12 +29,15 @@
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
-#define EXAMPLE_MAX_STA_CONN       CONFIG_MAX_STA_CONN
-#define SERVER_ADDR                "192.168.43.1"
+#define ESP_WIFI_SSID      	CONFIG_ESP_WIFI_SSID
+#define ESP_WIFI_PASS      	CONFIG_ESP_WIFI_PASSWORD
+#define MAX_STA_CONN       	CONFIG_MAX_STA_CONN
+#define SERVER_ADDR         CONFIG_SERVER_ADDRESS
+#define SERVER_PORT         CONFIG_SERVER_PORT
 
 #define MSG "hello world"
+
+static const char *TAG = "main application";
 
 extern "C" {
     void app_main(void);
@@ -48,11 +51,33 @@ static EventGroupHandle_t wifi_event_group;
    to the AP with an IP? */
 const int WIFI_CONNECTED_BIT = BIT0;
 
-static const char *TAG = "simple wifi";
+//static const char *TAG = "simple wifi";
 
 int connect_to_server();
+void wifi_init_sta();
 
 using namespace std;
+
+void app_main()
+{
+    //Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+    // Wifi mode STATION
+    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    wifi_init_sta();
+    // Wait until the device is connected to the wifi
+    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
+    		false, true, portMAX_DELAY);
+    //ESP_LOGI(TAG, "Fase di connessione terminata"); // togliere
+    SynchronizeBoard::obtain_time();
+    //SynchronizeBoard::print_time();
+    connect_to_server();
+}
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -94,13 +119,13 @@ void wifi_init_softap()
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     wifi_config_t wifi_config;
-    memcpy(wifi_config.ap.ssid ,EXAMPLE_ESP_WIFI_SSID, sizeof(EXAMPLE_ESP_WIFI_SSID));
-    wifi_config.ap.ssid_len = strlen(EXAMPLE_ESP_WIFI_SSID),
-    memcpy(wifi_config.ap.password, EXAMPLE_ESP_WIFI_PASS, sizeof(EXAMPLE_ESP_WIFI_PASS));
-    wifi_config.ap.max_connection = EXAMPLE_MAX_STA_CONN;
+    memcpy(wifi_config.ap.ssid ,ESP_WIFI_SSID, sizeof(ESP_WIFI_SSID));
+    wifi_config.ap.ssid_len = strlen(ESP_WIFI_SSID),
+    memcpy(wifi_config.ap.password, ESP_WIFI_PASS, sizeof(ESP_WIFI_PASS));
+    wifi_config.ap.max_connection = MAX_STA_CONN;
     wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
 
-    if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
+    if (strlen(ESP_WIFI_PASS) == 0) {
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
 
@@ -109,7 +134,7 @@ void wifi_init_softap()
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "wifi_init_softap finished.SSID:%s password:%s",
-             EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+             ESP_WIFI_SSID, ESP_WIFI_PASS);
 }
 
 void wifi_init_sta()
@@ -123,8 +148,8 @@ void wifi_init_sta()
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     wifi_config_t wifi_config;
     memset(&wifi_config,0, sizeof(wifi_config));
-    memcpy(wifi_config.ap.ssid ,EXAMPLE_ESP_WIFI_SSID, sizeof(EXAMPLE_ESP_WIFI_SSID));
-    memcpy(wifi_config.ap.password, EXAMPLE_ESP_WIFI_PASS, sizeof(EXAMPLE_ESP_WIFI_PASS));
+    memcpy(wifi_config.ap.ssid ,ESP_WIFI_SSID, sizeof(ESP_WIFI_SSID));
+    memcpy(wifi_config.ap.password, ESP_WIFI_PASS, sizeof(ESP_WIFI_PASS));
 
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
@@ -133,26 +158,10 @@ void wifi_init_sta()
 
     ESP_LOGI(TAG, "wifi_init_sta finished.");
     ESP_LOGI(TAG, "connect to ap SSID:%s password:%s", 
-            EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+            ESP_WIFI_SSID, ESP_WIFI_PASS);
 }
 
-void app_main()
-{
-    //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-    // Wifi mode STATION   
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    wifi_init_sta();
-    // Wait until the device is connected to the wifi
-    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
-            false, true, portMAX_DELAY);
-    connect_to_server();
-}
+
 
 int espx_last_socket_errno(int socket) {
     int ret = 0;

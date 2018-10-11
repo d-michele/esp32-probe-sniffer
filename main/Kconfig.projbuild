@@ -1,4 +1,4 @@
-menu "Example Configuration"
+menu "Application Configuration"
 
 choice ESP_WIFI_MODE
     prompt "AP or STA"
@@ -34,4 +34,23 @@ config MAX_STA_CONN
     default 4
     help
 	Max number of the STA connects to AP.
+	
+config SNTP_SERVER_IP
+    string "SNTP Server IP"
+    default "0.0.0.0"
+    help
+    IP of SNTP server for time synchronization
+
+config SERVER_ADDRESS
+    string "Main server IP"
+    default "0.0.0.0"
+    help
+        IP of main server
+		
+config SERVER_PORT
+    string "Main server PORT"
+    default "8080"
+    help
+        PORT of main server
+
 endmenu
