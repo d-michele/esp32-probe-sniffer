@@ -5,3 +5,8 @@ sdkconfig.old
 .settings/
 .idea/
 sdkconfig
+.gdb_history
+.gitignore.swp
+esp.sublime-project
+esp.sublime-workspace
+esp1.log
