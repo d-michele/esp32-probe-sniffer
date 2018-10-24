@@ -16,7 +16,8 @@ typedef struct {
 	uint8_t addr1[6]; /* receiver address */
 	uint8_t addr2[6]; /* sender address */
 	uint8_t addr3[6]; /* filtering address */
-	unsigned sequence_ctrl:16;
+	unsigned fragment_number:4;
+	unsigned sequence_number:12;
 } wifi_ieee80211_mac_hdr_t;
 
 typedef struct {
