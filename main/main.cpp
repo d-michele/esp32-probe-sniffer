@@ -288,7 +288,7 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 		return;
 	}
 
-    int errCode;
+
     int ret_conn;
 	char buf[32 + 1];
 	uint8_t subtype;
@@ -367,9 +367,8 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	string message = probe.toString();
 
 	if ((ret_conn = write(sock, message.c_str(), message.size())) != message.size()) {
-		errCode = errno;
 		cout << "error writing file data on disk" << endl <<
-				"errno: " << errCode << endl;
+				"errno: " << errno << endl;
 		return;
 	}
 	cout << "sent" << endl;
