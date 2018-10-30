@@ -4,9 +4,15 @@ sdkconfig.old
 .project
 .settings/
 .idea/
+<<<<<<< HEAD
 sdkconfig
 .gdb_history
 .gitignore.swp
 esp.sublime-project
 esp.sublime-workspace
 esp1.log
+=======
+cmake-build-debug/
+CMakeLists.txt
+sdkconfig
+>>>>>>> 8e13a7da1632016113ebd3040f354f68aae6296c
