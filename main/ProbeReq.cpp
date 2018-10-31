@@ -37,7 +37,7 @@ std::ostream& operator<<(ostream& os, const ProbeReq& probeReq){
     return os;
 }
 
-std::string ProbeReq::toString() {
+std::string ProbeReq::to_string() {
 	std::string resp{"{"};
 	resp += "SUBTYPE: ";
 	resp += packetSubtype2Str(subtype);
@@ -50,7 +50,7 @@ std::string ProbeReq::toString() {
 	resp += ", RSSI: ";
 	std::stringstream sstm2;
 	sstm2 << static_cast<int>(rssi);
-	resp += sstm1.str();
+	resp += sstm2.str();
 	resp += ", SOURCE: ";
 	for (auto iter = sourceAddress.begin(); iter != sourceAddress.end(); iter++) {
 		/*const unsigned char& byte = *iter;

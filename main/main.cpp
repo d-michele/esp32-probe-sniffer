@@ -6,6 +6,7 @@
     software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
     CONDITIONS OF ANY KIND, either express or implied.
 */
+#include <algorithm>
 #include "driver/gpio.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -30,6 +31,7 @@
 #include <string>
 #include <string.h>
 #include "synchronizeboard.h"
+#include <vector>
 #include "80211Packet.h"
 
 
@@ -61,6 +63,7 @@ static wifi_country_t wifi_country = {.cc="CN", .schan=1, .nchan=13, .policy=WIF
    to the AP with an IP? */
 const int WIFI_CONNECTED_BIT = BIT0;
 int sock;
+std::vector<ProbeReq> vector_pb;
 
 extern "C" {
     void app_main(void);
@@ -76,6 +79,7 @@ static void wifi_sniffer_packet_handler(void *buff, wifi_promiscuous_pkt_type_t 
 
 int connect_to_server();
 void wifi_init_sta();
+void send_probe_req(ProbeReq&);
 
 using namespace std;
 
@@ -96,7 +100,7 @@ void app_main(void) {
 	//ESP_LOGI(TAG, "Fase di connessione terminata"); // togliere
 	SynchronizeBoard::obtain_time();
 	//SynchronizeBoard::print_time();
-	connect_to_server();
+	//connect_to_server();
 
 	//int8_t level = 0, channel = 1;
 
@@ -176,6 +180,10 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
     case SYSTEM_EVENT_STA_GOT_IP:
         ESP_LOGI(TAG, "got ip:%s", ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+        close(sock);
+        connect_to_server();
+        std::for_each(vector_pb.begin(), vector_pb.end(), send_probe_req);
+        vector_pb.erase(vector_pb.begin(), vector_pb.end());
         break;
     case SYSTEM_EVENT_AP_STACONNECTED:
         ESP_LOGI(TAG, "station:" MACSTR " join, AID=%d", 
@@ -195,6 +203,12 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         break;
     }
     return ESP_OK;
+}
+
+void send_probe_req(ProbeReq& pr){
+	string message = pr.to_string();
+	write(sock, message.c_str(), message.size());
+	cout << "sent" << endl;
 }
 
 void wifi_init_softap()
@@ -270,13 +284,13 @@ esp_err_t connect_to_server() {
     cout << "connection done";
     // char *ptr = "hello world";
     // u16_t writeByte = (u16_t) size_t(ptr); 
-    if ((ret_conn = write(sock, MSG, strlen(MSG))) != strlen(MSG)) {
+    /*if ((ret_conn = write(sock, MSG, strlen(MSG))) != strlen(MSG)) {
         errCode = errno;
         cout << "error writing file data on disk" << endl <<
                 "errno: " << errCode << endl;
         return ESP_FAIL;
     }
-    cout << "sent" << endl;
+    cout << "sent" << endl; */
 
     return ESP_OK;
 }
@@ -364,13 +378,16 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 		rssi, ssid, ssidLen, sAddr, dAddr, bssid);
 
 	cout << probe;
-	string message = probe.toString();
+
+	string message = probe.to_string();
+
 
 	if ((ret_conn = write(sock, message.c_str(), message.size())) != message.size()) {
-		cout << "error writing file data on disk" << endl <<
-				"errno: " << errno << endl;
+		cout << "error writing file data on disk" << endl << "errno: " << errno << endl;
+		vector_pb.push_back(probe);
 		return;
 	}
 	cout << "sent" << endl;
+
 
 }

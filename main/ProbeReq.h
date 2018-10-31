@@ -59,7 +59,7 @@ public:
 
 	string getSsid() { return this->ssid; }
 
-	string toString();
+	string to_string();
 
 private:
 	wifi_promiscuous_pkt_type_t type;
