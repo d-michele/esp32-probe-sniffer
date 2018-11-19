@@ -14,14 +14,58 @@ using namespace std;
 class ProbeReq {
 
 public:
+	/* ProbeReq class builder */
+	class Builder {
+	public:
+		static Builder* create();
 
-	explicit ProbeReq(wifi_promiscuous_pkt_type_t type, uint8_t subtype,
-		uint8_t channel, int8_t rssi, string ssid, uint8_t ssidLen,
-		array<uint8_t,6>& destAddress, array<uint8_t,6>& sourceAddress,
-		array<uint8_t,6>& bssid):
-		type(type), subtype(subtype), channel(channel), rssi(rssi),
-		ssid(ssid), ssidLen(ssidLen), destAddress(destAddress),
-		sourceAddress(sourceAddress), bssid(bssid) {};
+		Builder& withType(wifi_promiscuous_pkt_type_t type);
+
+		Builder& withSubtype(uint8_t subtype);
+
+		Builder& withChannel(uint8_t channel);
+
+		Builder& withRssi(int8_t rssi);
+
+		Builder& withSsid(const char *ssid, uint8_t ssidLen);
+
+		Builder& withDestAddress(const uint8_t destAddress[6]);
+	    
+		Builder& withSourceAddress(const uint8_t sourceAddress[6]);
+
+		Builder& withBssid(const uint8_t bssid[6]);
+
+		Builder& withMd5digest(const unsigned char md5digest[16]);
+
+		Builder& withTimestamp(uint32_t timestamp);
+
+		Builder& withSequenceNumber(uint16_t sequence_number);
+
+		ProbeReq build();
+
+		// // debug
+		// ~Builder() {
+		// 	cout << "builder destroying" << endl;
+		// }
+
+	private:
+		Builder() {}
+
+
+
+		wifi_promiscuous_pkt_type_t type;
+		uint8_t subtype;
+		uint8_t channel;
+		int8_t rssi;
+		string ssid;
+		uint8_t ssidLen;
+		array <uint8_t,6> destAddress; /* receiver address */
+		array <uint8_t,6> sourceAddress; /* sender address */
+		array <uint8_t,6> bssid; /* filtering address */
+		uint16_t sequence_number;
+		array <char,16> md5digest;
+		uint32_t timestamp;
+	};
 
 	void setType(wifi_promiscuous_pkt_type_t type){ this->type = type; }
 
@@ -59,7 +103,10 @@ public:
 
 	string getSsid() { return this->ssid; }
 
-
+	// // debug
+	// ~ProbeReq() {
+	// 	cout << "probereq destroying" << endl;
+	// }
 private:
 	wifi_promiscuous_pkt_type_t type;
 	uint8_t subtype;
@@ -70,6 +117,21 @@ private:
 	array <uint8_t,6> destAddress; /* receiver address */
 	array <uint8_t,6> sourceAddress; /* sender address */
 	array <uint8_t,6> bssid; /* filtering address */
+	uint16_t sequence_number;
+	array <char, 16> md5digest;
+	uint32_t timestamp;
+
+
+	explicit ProbeReq(wifi_promiscuous_pkt_type_t type, uint8_t subtype,
+		uint8_t channel, int8_t rssi, string ssid, uint8_t ssidLen,
+		array<uint8_t,6>&& destAddress, array<uint8_t,6>&& sourceAddress,
+		array<uint8_t,6>&& bssid, uint16_t sequence_number, 
+		array <char, 16>&& md5digest, uint32_t timestamp):
+		type(type), subtype(subtype), channel(channel), rssi(rssi),
+		ssid(ssid), ssidLen(ssidLen), destAddress(destAddress),
+		sourceAddress(sourceAddress), bssid(bssid),
+		sequence_number(sequence_number), md5digest(md5digest),
+		timestamp(timestamp) {};
 
 	friend std::ostream& operator<<(ostream& os, const ProbeReq& probeReq);
 };
