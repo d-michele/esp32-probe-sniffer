@@ -16,7 +16,7 @@
 #include "socketUtils.h"
 #include "esp_heap_trace.h"
 
-#define LOG_LOCAL_LEVEL  CONFIG_LOG_DEFAULT_LEVEL
+// #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
 #define FIXED_CHANNEL 1                                /* fixed channel to sniff */
 
 #define NUM_RECORDS 100

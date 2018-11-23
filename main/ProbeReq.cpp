@@ -24,13 +24,20 @@ ProbeReq::Builder& ProbeReq::Builder::withChannel(uint8_t channel) {
 
 ProbeReq::Builder& ProbeReq::Builder::withRssi(int8_t rssi) {
 	this->rssi = rssi;
-    cout << this << endl;
+    // cout << this << endl;
 	return *this;
 }
 
 ProbeReq::Builder& ProbeReq::Builder::withSsid(const char *ssid, uint8_t ssidLen) {
-	this->ssid = move(ssid);
+    // char buf[32+1];
+    // memcpy(buf, ssid, ssidLen);
+	string ssidStr(ssid, (size_t) ssidLen);
+	this->ssid = move (ssidStr);
 	this->ssidLen = ssidLen;
+    // buf[ssidLen] = '\0';
+	// this->ssid = buf;
+	// cout << "ssid:" << this->ssid << " ssidLen: " << dec << this->ssidLen << endl;
+	// delete[] buf;
 	return *this;
 }
 

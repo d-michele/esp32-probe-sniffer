@@ -6,8 +6,10 @@
 #include <string>
 #include <array>
 #include <memory>
+#include <new>
 #include <iostream>
 #include <iomanip>
+#include "string.h"
 
 using namespace std;
 
@@ -28,6 +30,11 @@ public:
 		Builder& withRssi(int8_t rssi);
 
 		Builder& withSsid(const char *ssid, uint8_t ssidLen);
+		
+		Builder& withSsid2(string ssid) {
+			this->ssid = ssid;
+			return *this;
+		}
 
 		Builder& withDestAddress(const uint8_t destAddress[6]);
 	    

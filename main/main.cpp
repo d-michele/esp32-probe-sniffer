@@ -33,8 +33,8 @@
 #define	WIFI_CHANNEL_SWITCH_INTERVAL	(500)
 #define FIXED_CHANNEL 1                                /* fixed channel to sniff */
 #define STACK_SIZE 4096                                 /* consumer task size */
-#define RINGBUF_SIZE 1024                               /* size of ringbuffer */
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
+#define RINGBUF_SIZE 2048                               /* size of ringbuffer */
+// #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
 
 /* logging tag */
 const char *TAG = "pds 2018";
@@ -220,7 +220,8 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
     // xSemaphoreTake(chanMutex, portMAX_DELAY);
     // xEventGroupWaitBits(send_event_group, SEND_BIT,
             // false, true, portMAX_DELAY);
-
+    ESP_LOGI(TAG, "Priority is : %d", uxTaskPriorityGet(nullptr));
+    // Todo try to remove it beacause of mask of promiscuous mode
     if (type != WIFI_PKT_MGMT) {
         return;
     }
@@ -228,12 +229,12 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
     if (ppkt->rx_ctrl.sig_len > RINGBUF_SIZE) 
         return;
 
-    ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
+    // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
     int res = xRingbufferSend(packetRingBuffer, buff, ppkt->rx_ctrl.sig_len, 0);
     if (res != pdTRUE) {
-        ESP_LOGD(TAG, "Error during ringBuffer insertion buffer full\n");
+        ESP_LOGW(TAG, "Error during ringBuffer insertion buffer full\n");
     } else {
-        ESP_LOGD(TAG, "(Core %d) Paket inserted, size: %d", xPortGetCoreID(), ppkt->rx_ctrl.sig_len);
+        // ESP_LOGD(TAG, "(Core %d) Paket inserted, size: %d", xPortGetCoreID(), ppkt->rx_ctrl.sig_len);
     }
 
     // esp_wifi_set_promiscuous(false);
