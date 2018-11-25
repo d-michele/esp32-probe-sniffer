@@ -6,8 +6,7 @@
 // #include "esp_log.h"
 #include "stdio.h"
 #include "apps/sntp/sntp.h"
-
-#define SNTP_SERVER_IP 		CONFIG_SNTP_SERVER_IP
+#include "esp32_pds.h"
 
 void SynchronizeBoard::initialize_sntp(void)
 {

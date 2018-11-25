@@ -1,5 +1,28 @@
 #include "ConsumerTask.h"
 
+ConsumerTask::ConsumerTask(int socket, RingbufHandle_t packetRingBuffer) {
+    // boxing task args
+    map<int, void*> *args = new map<int, void*>;
+    args->insert(pair<int, void*>(ConsumerTask::Keys::SOCKET, (void *) socket));
+    args->insert(pair<int, void*>(ConsumerTask::Keys::RINGBUFFER, (void *) packetRingBuffer));
+    // args[1] = (void*) socket;
+    // Create consumer task
+    xTaskCreate(ConsumerTask::consume, "consumer_task", STACK_SIZE,
+            static_cast<void*>(args), tskIDLE_PRIORITY, &(this->consumerHandle));                
+}
+
+//  Not useful for now because the consumer is not designed to terminate
+// ConsumerTask::~ConsumerTask() {
+
+    // ToDo wait termination with Event_Group
+
+    // if( this->consumerHandle != NULL )
+    //  {
+    //      vTaskDelete( xHandle );
+    //  }
+// }
+
+
 void ConsumerTask::consume(void *args) {
     ESP_LOGI(TAG, "Consumer task created");
     map<int, void*> *argsMap = static_cast<map<int, void*>*> (args);
@@ -12,69 +35,97 @@ void ConsumerTask::consume(void *args) {
     RingbufHandle_t packetRingBuffer = (RingbufHandle_t) it->second;
     delete argsMap;
 
-    // ESP_ERROR_CHECK( heap_trace_init_standalone(trace_record, NUM_RECORDS) );
-
     while (1) {
-        char buf[32 + 1];    
-        uint8_t subtype;
-        int8_t rssi;
-        uint8_t channel;
-        uint8_t ssidLen;
-        // string ssid;
-        // array<uint8_t,6> sAddr;
-        // array<uint8_t,6> dAddr;
-        // array<uint8_t,6> bssid;
-        unsigned char md5digest[16];
-
         size_t packetSize;  
 
-        // ESP_ERROR_CHECK( heap_trace_start(HEAP_TRACE_LEAKS) );
-
+        // task yield in order to context switch to other task if neccessary and hence resetting
+        // the watchdog because if many packets are ready i will not put the thread in sleeping queue
+        // vTaskDelay(portTICK_PERIOD_MS);
+        taskYIELD();
         void *probePacket = xRingbufferReceive(packetRingBuffer, &packetSize, portMAX_DELAY);
         if (probePacket == nullptr) {
             ESP_LOGE(TAG, "Error retrieving element from queue\n");
             continue;
         }
         // ESP_LOGD(TAG, "(Core %d) Extracted element from queue, size: %d",xPortGetCoreID(), packetSize);        
-
-        const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)probePacket;
-        const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
-        const wifi_ieee80211_mac_hdr_t *hdr = &ipkt->hdr;
-        /* filter only PROBE REQ packets */
-        subtype = hdr->frame_ctrl;
-        subtype = subtype & 0xF0;
-        if (subtype != 0x40) {
-            // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
+        // if not a probe req i will discard packet
+        unique_ptr<ProbeReq> probePtr;
+        if (consumeSniffedPacket(probePacket, probePtr) == false) {
+            // remove packet from ringbuffer
             vRingbufferReturnItem(packetRingBuffer, probePacket);
+            ESP_LOGD(TAG, "discarded remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
             continue;
         }
-        // i don't know why but last 4 bytes (of FCS i think) are different for any ESP receiver
-        int payloadSize = ppkt->rx_ctrl.sig_len - 4;
-        // debug
-        // dumpPacket(ppkt, payloadSize);
-        uint8_t *payloadHash = new uint8_t[payloadSize];
-        bzero(payloadHash, payloadSize);
-        memcpy(payloadHash, ppkt->payload, payloadSize);
-        // extracting packet info from the payload
-        rssi = ppkt->rx_ctrl.rssi;
-        // take channel byte and filter useful bits
-        channel = ppkt->rx_ctrl.channel;
-        channel &= 0xF0;
-        // ***ToDo correct the timestamp***
-        
-        // i don't know why but last 4 bytes (of CRC i think) are different for any ESP receiver
-        // calculating md5 packet digest
-        mbedtls_md5((const unsigned char *) ppkt->payload, payloadSize, md5digest);
-        
-        // delete[] payloadHash;
-        // ESP_LOGD(TAG, "****ssidLen %d %d %d %d %d %d", ppkt->payload[0], ppkt->payload[1], ppkt->payload[2], ppkt->payload[3], ppkt->payload[4], ppkt->payload[5]);
+        cout << probePtr.get();
+        stringstream ss;
+        ss << *probePtr;
+        string str = ss.str();
+        char *abc = new char[str.length() + 1];
+        strcpy(abc, str.c_str());
+        // ESP_LOGD(TAG, "%s", abc);
+        while (send(socket, abc, strlen(abc), 0) == -1) {
+            ESP_LOGE(TAG, "Error sending sniffed packet info to server");
+            close(socket);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            // ESP_ERROR_CHECK(connect_to_server(&socket));
+            connect_to_server(&socket);
+        }
+        delete[] abc;
+        vRingbufferReturnItem(packetRingBuffer, probePacket);
+        ESP_LOGD(TAG, "sended remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
+    }
+}
+
+bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>& retProbeReq) {
+    char buf[32 + 1];    
+    uint8_t subtype;
+    int8_t rssi;
+    uint8_t channel;
+    uint8_t ssidLen;
+    unsigned char md5digest[16];
+    string ssid;
+
+    const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)probePacket;
+    const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
+    const wifi_ieee80211_mac_hdr_t *hdr = &ipkt->hdr;
+    /* filter only PROBE REQ packets */
+    subtype = hdr->frame_ctrl;
+    subtype = subtype & 0xF0;
+    if (subtype != 0x40) {
+        // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
+        return false;
+    }
+    // i don't know why but last 4 bytes (of FCS i think) are different for any ESP receiver
+    int payloadSize = ppkt->rx_ctrl.sig_len - 4;
+    // debug
+    // dumpPacket(ppkt, payloadSize);
+    uint8_t *payloadHash = new uint8_t[payloadSize];
+    bzero(payloadHash, payloadSize);
+    memcpy(payloadHash, ppkt->payload, payloadSize);
+    // extracting packet info from the payload
+    rssi = ppkt->rx_ctrl.rssi;
+    // take channel byte and filter useful bits
+    channel = ppkt->rx_ctrl.channel;
+    channel &= 0xF0;
+    // ***ToDo correct the timestamp***
+    // i don't know why but last 4 bytes (of CRC i think) are different for any ESP receiver
+    // calculating md5 packet digest
+    mbedtls_md5(    (const unsigned char *) ppkt->payload, payloadSize, md5digest);
+    // copy from ssid begin a length of ssid length specified in the payload 
+    ssidLen = ppkt->payload[25];
+    ESP_LOGD(TAG, "ssid len: %d", ssidLen);
+    if (ssidLen <= 32)  {
         memcpy(buf, &(ppkt->payload[26]), (size_t) ppkt->payload[25]);
         buf[ppkt->payload[25]] = '\0';
-        ESP_LOGD(TAG, "%s", buf);
-        string ssid(buf);
-        // unique_ptr<ProbeReq::Builder> builderPtr(ProbeReq::Builder::create());
-        ProbeReq::Builder *builderPtr = ProbeReq::Builder::create();
-        ProbeReq probe = builderPtr->withType(WIFI_PKT_MGMT)
+        // ESP_LOGD(TAG, "%s", buf);
+        ssid = buf;
+        ESP_LOGD(TAG, "ssidLen %d", ssidLen);
+    } else {
+        ssid = "";
+    }
+    retProbeReq.reset(new ProbeReq (
+                ProbeReq::Builder()
+                .withType(WIFI_PKT_MGMT)
                 .withSubtype(subtype)
                 .withChannel(ppkt->rx_ctrl.channel)
                 .withRssi(rssi)
@@ -86,52 +137,8 @@ void ConsumerTask::consume(void *args) {
                 .withMd5digest(md5digest)
                 .withSequenceNumber(hdr->sequence_number)
                 .withTimestamp(ppkt->rx_ctrl.timestamp)
-                .build();
+                .build()
+            ));
 
-        delete builderPtr;
-        // vRingbufferReturnItem(packetRingBuffer, probePacket);
-
-        // ESP_LOGI(TAG, "packet len: %d ssidLen: %d", ppkt->rx_ctrl.sig_len, ipkt->ssid_prmtr.tag_len);
-        // cout << probe;
-        stringstream ss;
-        ss << probe;
-        string str = ss.str();
-        char *abc = new char[str.length() + 1];
-        strcpy(abc, str.c_str());
-        ESP_LOGD(TAG, "%s", abc);
-        // xSemaphoreTake(chanMutex, portMAX_DELAY);
-        // xEventGroupSetBits(send_event_group, SEND_BIT);
-        // esp_wifi_set_promiscuous_rx_cb(nullptr);
-        // vTaskDelay(10); 
-        // ESP_ERROR_CHECK(esp_wifi_set_channel(wifi_connection_chan, wifi_connection_second_chan));
-        // ESP_LOGD(TAG, "d1");// esp_wifi_set_promiscuous(false);
-        // uint8_t pchan; wifi_second_chan_t schan; 
-        // esp_wifi_get_channel(&pchan, &schan);
-        // ESP_LOGD(TAG, "channel send: %d schan: %d", pchan, schan);
-        vTaskDelay(10);
-        if (sendn(socket, abc, strlen(abc), 0) == -1) {
-            ESP_LOGE(TAG, "Error sending sniffed packet info to server");
-            close(socket);
-            ESP_ERROR_CHECK(connect_to_server(&socket));
-        }
-        // ESP_LOGD(TAG, "d2");
-        // xEventGroupSetBits(send_event_group, SEND_BIT);
-        // esp_wifi_set_promiscuous_rx_cb(&wifi_sniffer_packet_handler);
-        // vTaskDelay(10);
-        // ESP_ERROR_CHECK(esp_wifi_set_channel(FIXED_CHANNEL, WIFI_SECOND_CHAN_NONE));
-        // ESP_LOGD(TAG, "d3");
-        // esp_wifi_set_promiscuous(true);
-        // xSemaphoreGive(chanMutex);
-                
-        // esp_wifi_get_channel(&pchan, &schan);
-        // ESP_LOGD(TAG, "channel send: %d schan: %d", pchan, schan);       
-        delete[] abc;
-        vRingbufferReturnItem(packetRingBuffer, probePacket);
-        // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
-
-        // builderPtr.reset();
-        // probe.~ProbeReq();
-        // ESP_ERROR_CHECK( heap_trace_stop() );
-        // heap_trace_dump();
-    }
+    return true;
 }

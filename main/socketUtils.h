@@ -7,14 +7,9 @@
 #include "lwip/sockets.h"
 #include <iostream>
 #include "esp_log.h"
-
-#define SERVER_ADDR         CONFIG_SERVER_ADDRESS
-#define SERVER_PORT         CONFIG_SERVER_PORT
-#define LOG_LOCAL_LEVEL  CONFIG_LOG_DEFAULT_LEVEL
+#include "esp32_pds.h"
 
 using namespace std;
-
-extern const char *TAG;
 
 /**
   * @brief     wrapper to send data of size n in more than one send if required

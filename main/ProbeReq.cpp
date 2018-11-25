@@ -2,10 +2,6 @@
 
 using namespace std;
 
-ProbeReq::Builder* ProbeReq::Builder::create() {
-	return new Builder();
-}
-
 ProbeReq::Builder& ProbeReq::Builder::withType(wifi_promiscuous_pkt_type_t type) {
 	this->type = type;
 	return *this;	

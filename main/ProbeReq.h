@@ -19,7 +19,7 @@ public:
 	/* ProbeReq class builder */
 	class Builder {
 	public:
-		static Builder* create();
+		Builder() {}
 
 		Builder& withType(wifi_promiscuous_pkt_type_t type);
 
@@ -56,10 +56,6 @@ public:
 		// }
 
 	private:
-		Builder() {}
-
-
-
 		wifi_promiscuous_pkt_type_t type;
 		uint8_t subtype;
 		uint8_t channel;
@@ -139,6 +135,10 @@ private:
 		sourceAddress(sourceAddress), bssid(bssid),
 		sequence_number(sequence_number), md5digest(md5digest),
 		timestamp(timestamp) {};
+
+	// ~ProbeReq() {
+		// delete[] ssid;
+	// }
 
 	friend std::ostream& operator<<(ostream& os, const ProbeReq& probeReq);
 };

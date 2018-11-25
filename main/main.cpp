@@ -1,7 +1,6 @@
 #include "freertos/FreeRTOS.h"
 
 #include "freertos/task.h"
-#include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
@@ -23,32 +22,20 @@
 #include "synchronizeboard.h"
 #include "socketUtils.h"
 #include "ConsumerTask.h"
-
-//ToDo put common define in a header file
-#define ESP_WIFI_SSID      	CONFIG_ESP_WIFI_SSID
-#define ESP_WIFI_PASS      	CONFIG_ESP_WIFI_PASSWORD
-#define MAX_STA_CONN       	CONFIG_MAX_STA_CONN
-#define	LED_GPIO_PIN			GPIO_NUM_4               /* blinking blue led */
-#define	WIFI_CHANNEL_MAX		(13)
-#define	WIFI_CHANNEL_SWITCH_INTERVAL	(500)
-#define FIXED_CHANNEL 1                                /* fixed channel to sniff */
-#define STACK_SIZE 4096                                 /* consumer task size */
-#define RINGBUF_SIZE 2048                               /* size of ringbuffer */
-// #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
-
-/* logging tag */
-const char *TAG = "pds 2018";
+#include "esp32_pds.h"
 
 static wifi_country_t wifi_country = {.cc="CN", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
 /* FreeRTOS event group to signal when we are connected*/
-static EventGroupHandle_t wifi_event_group;
 // static EventGroupHandle_t send_event_group;
 // static SemaphoreHandle_t chanMutex;
 
 static esp_err_t event_handler(void *ctx, system_event_t *event);
 static void wifi_sniffer_set_channel(uint8_t channel);
 static void wifi_sniffer_packet_handler(void *buff, wifi_promiscuous_pkt_type_t type);
-void wifi_init_sta(void);
+static uint8_t wifi_connection_chan;
+static wifi_second_chan_t wifi_connection_second_chan;
+
+const char *TAG = "pds 2018";
 
 /* The event group allows multiple bits for each event,
    but we only care about one event - are we connected
@@ -57,93 +44,18 @@ const int WIFI_CONNECTED_BIT = BIT0;
 
 const int SEND_BIT = BIT0;
 
-static uint8_t wifi_connection_chan;
+EventGroupHandle_t wifi_event_group;
 
-static wifi_second_chan_t wifi_connection_second_chan;
+
 
 /* shared ringbuffer between producer and consumer */
 RingbufHandle_t packetRingBuffer;
-
 
 extern "C" {
     void app_main(void);
 }
 
 using namespace std;
-
-void app_main()
-{
-    #ifndef FIXED_CHANNEL
-	   uint8_t channel = 1;
-    #endif
-
-    //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
-    // Initialize RingBuffer
-    packetRingBuffer = xRingbufferCreate(RINGBUF_SIZE, RINGBUF_TYPE_NOSPLIT);
-    assert(packetRingBuffer && "Critical error during ring buffer initialization");
-    // vSemaphoreCreateBinary(chanMutex);
-
-    // Wifi mode STATION
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    wifi_init_sta();
-    // wifi_sniffer_init();
-    // Wait until the device is connected to the wifi
-    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
-    		false, true, portMAX_DELAY);
-    //ESP_LOGI(TAG, "Fase di connessione terminata"); // togliere
-    SynchronizeBoard::obtain_time();
-    // SynchronizeBoard::print_time();
-    int socket = -1;
-    ESP_ERROR_CHECK(connect_to_server(&socket));
-    gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
-    int level = 0;
-
-    #ifdef FIXED_CHANNEL
-    	wifi_sniffer_set_channel(FIXED_CHANNEL);
-        ESP_LOGI(TAG, "Fixed channel %d", FIXED_CHANNEL);
-    #endif
-
-    
-    // ToDo taskRAM size e ringbuf size optimization
-    // boxing task args
-    map<int, void*> *args = new map<int, void*>;
-    args->insert(pair<int, void*>(ConsumerTask::Keys::SOCKET, (void *) socket));
-    args->insert(pair<int, void*>(ConsumerTask::Keys::RINGBUFFER, (void *) packetRingBuffer));
-    // args[1] = (void*) socket;
-    // Create consumer task
-    TaskHandle_t consumerHandle = nullptr;
-    xTaskCreate(ConsumerTask::consume, "consumer_task", STACK_SIZE,
-            static_cast<void*>(args), tskIDLE_PRIORITY, &consumerHandle);
-
-    esp_wifi_set_promiscuous(true);
-    while (true) {
-		#ifndef FIXED_CHANNEL
-        //ToDo mutex on channel operation so when i'm sending data I lock the channel
-    		vTaskDelay(WIFI_CHANNEL_SWITCH_INTERVAL / portTICK_PERIOD_MS);
-	        ESP_LOGI(TAG, "Changing channel to %d", channel);
-            wifi_sniffer_set_channel(channel);
-            channel = (channel % WIFI_CHANNEL_MAX) + 1;
-		#else
-            // wifi_sniffer_set_channel(FIXED_CHANNEL);
-            // esp_wifi_set_promiscuous(true);
-        #endif
-            gpio_set_level(GPIO_NUM_2, level);
-            level = !level;
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-
-            // esp_wifi_set_promiscuous(false);
-            // ESP_ERROR_CHECK(esp_ wifi_start());
-            // xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
-                    // false, true, portMAX_DELAY);
-    }
-}
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -220,7 +132,6 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
     // xSemaphoreTake(chanMutex, portMAX_DELAY);
     // xEventGroupWaitBits(send_event_group, SEND_BIT,
             // false, true, portMAX_DELAY);
-    ESP_LOGI(TAG, "Priority is : %d", uxTaskPriorityGet(nullptr));
     // Todo try to remove it beacause of mask of promiscuous mode
     if (type != WIFI_PKT_MGMT) {
         return;
@@ -229,14 +140,82 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
     if (ppkt->rx_ctrl.sig_len > RINGBUF_SIZE) 
         return;
 
-    // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
     int res = xRingbufferSend(packetRingBuffer, buff, ppkt->rx_ctrl.sig_len, 0);
     if (res != pdTRUE) {
         ESP_LOGW(TAG, "Error during ringBuffer insertion buffer full\n");
     } else {
         // ESP_LOGD(TAG, "(Core %d) Paket inserted, size: %d", xPortGetCoreID(), ppkt->rx_ctrl.sig_len);
+        ESP_LOGD(TAG, "inserted remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
     }
 
     // esp_wifi_set_promiscuous(false);
     // xSemaphoreGive(chanMutex);
+}
+
+void app_main(void)
+{
+    #ifndef FIXED_CHANNEL
+       uint8_t channel = 1;
+    #endif
+
+    //Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    // Initialize RingBuffer
+    ESP_LOGD(TAG, "dim ringbuf: %d", RINGBUF_SIZE);
+    packetRingBuffer = xRingbufferCreate(RINGBUF_SIZE, RINGBUF_TYPE_NOSPLIT);
+    assert(packetRingBuffer && "Critical error during ring buffer initialization");
+    // vSemaphoreCreateBinary(chanMutex);
+
+    // Wifi mode STATION
+    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    wifi_init_sta();
+    // wifi_sniffer_init();
+    // Wait until the device is connected to the wifi
+    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
+            false, true, portMAX_DELAY);
+    //ESP_LOGI(TAG, "Fase di connessione terminata"); // togliere
+    SynchronizeBoard::obtain_time();
+    // SynchronizeBoard::print_time();
+    int socket = -1;
+    ESP_ERROR_CHECK(connect_to_server(&socket));
+    gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+    int level = 0;
+
+    #ifdef FIXED_CHANNEL
+        wifi_sniffer_set_channel(FIXED_CHANNEL);
+        ESP_LOGI(TAG, "Fixed channel %d", FIXED_CHANNEL);
+    #endif
+
+    
+    // ToDo taskRAM size e ringbuf size optimization
+    ConsumerTask consumerTask(socket, packetRingBuffer);
+
+
+    esp_wifi_set_promiscuous(true);
+    while (true) {
+        #ifndef FIXED_CHANNEL
+        //ToDo mutex on channel operation so when i'm sending data I lock the channel
+            vTaskDelay(WIFI_CHANNEL_SWITCH_INTERVAL / portTICK_PERIOD_MS);
+            ESP_LOGI(TAG, "Changing channel to %d", channel);
+            wifi_sniffer_set_channel(channel);
+            channel = (channel % WIFI_CHANNEL_MAX) + 1;
+        #else
+            // wifi_sniffer_set_channel(FIXED_CHANNEL);
+            // esp_wifi_set_promiscuous(true);
+        #endif
+            gpio_set_level(GPIO_NUM_2, level);
+            level = !level;
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+
+            // esp_wifi_set_promiscuous(false);
+            // ESP_ERROR_CHECK(esp_ wifi_start());
+            // xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
+                    // false, true, portMAX_DELAY);
+    }
 }
