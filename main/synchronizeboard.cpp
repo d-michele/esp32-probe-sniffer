@@ -4,14 +4,15 @@
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 // #include "esp_log.h"
-#include "stdio.h"
+#include <stdio.h>
+#include <string.h>
 #include "apps/sntp/sntp.h"
 #include "esp32_pds.h"
 
 void SynchronizeBoard::initialize_sntp(void)
 {
 	ip_addr_t sntp_server_ip;
-	bzero(&sntp_server_ip, sizeof(sntp_server_ip));
+	memset(&sntp_server_ip, 0, sizeof(sntp_server_ip));
 	inet_pton(AF_INET, SNTP_SERVER_IP, &sntp_server_ip);
 	//ESP_LOGI(TAG, "Initializing SNTP");
 	sntp_setoperatingmode(SNTP_OPMODE_POLL);
@@ -28,7 +29,7 @@ void SynchronizeBoard::obtain_time(void)
 	struct tm timeinfo;
 	int retry = 0;
 	const int retry_count = 10;
-	bzero(&timeinfo, sizeof(timeinfo));
+	memset(&timeinfo, 0, sizeof(timeinfo));
 	while(timeinfo.tm_year < (2018 - 1900) && ++retry < retry_count) {
 		//ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
 		vTaskDelay(2000 / portTICK_PERIOD_MS);

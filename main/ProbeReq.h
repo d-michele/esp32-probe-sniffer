@@ -16,6 +16,14 @@ using namespace std;
 class ProbeReq {
 
 public:
+
+	typedef struct {
+		const char* SSID = "SSID";
+		const char* SADDR = "SADD";
+		const char* RSSI = "RSSI";
+		const char* TIMESTAMP = "TIMESTAMP";
+		const char* MD5HASH = "MD5HASH";
+	} Keys;
 	/* ProbeReq class builder */
 	class Builder {
 	public:

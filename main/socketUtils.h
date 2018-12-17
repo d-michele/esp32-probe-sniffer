@@ -6,6 +6,7 @@
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 #include <iostream>
+#include <string.h>
 #include "esp_log.h"
 #include "esp32_pds.h"
 

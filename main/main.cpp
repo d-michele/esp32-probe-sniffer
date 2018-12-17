@@ -23,8 +23,9 @@
 #include "socketUtils.h"
 #include "ConsumerTask.h"
 #include "esp32_pds.h"
+#include "80211Packet.h"
 
-static wifi_country_t wifi_country = {.cc="CN", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
+// static wifi_country_t wifi_country = {.cc="CN", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
 /* FreeRTOS event group to signal when we are connected*/
 // static EventGroupHandle_t send_event_group;
 // static SemaphoreHandle_t chanMutex;
@@ -45,8 +46,6 @@ const int WIFI_CONNECTED_BIT = BIT0;
 const int SEND_BIT = BIT0;
 
 EventGroupHandle_t wifi_event_group;
-
-
 
 /* shared ringbuffer between producer and consumer */
 RingbufHandle_t packetRingBuffer;
@@ -98,17 +97,19 @@ void wifi_init_sta(void)
 {
     wifi_event_group = xEventGroupCreate();
     tcpip_adapter_init();
+    ESP_LOGI(TAG, "ciao");
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL) );
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_LOGI(TAG, "ciaone");
     wifi_config_t wifi_config;
     memset(&wifi_config,0, sizeof(wifi_config));
     memcpy(wifi_config.ap.ssid ,ESP_WIFI_SSID, sizeof(ESP_WIFI_SSID));
     memcpy(wifi_config.ap.password, ESP_WIFI_PASS, sizeof(ESP_WIFI_PASS));
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA) );
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
     //sniffer configuration
-    ESP_ERROR_CHECK( esp_wifi_set_country(&wifi_country) ); /* set country for channel range [1, 13] */
+    // ESP_ERROR_CHECK( esp_wifi_set_country(&wifi_country) ); /* set country for channel range [1, 13] */
     ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
     //connecting the station to wifi
     ESP_ERROR_CHECK(esp_wifi_start() );
@@ -133,12 +134,23 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
     // xEventGroupWaitBits(send_event_group, SEND_BIT,
             // false, true, portMAX_DELAY);
     // Todo try to remove it beacause of mask of promiscuous mode
+    uint8_t subtype;
     if (type != WIFI_PKT_MGMT) {
         return;
     }
     wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *) buff;
     if (ppkt->rx_ctrl.sig_len > RINGBUF_SIZE) 
         return;
+
+    const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
+    const wifi_ieee80211_mac_hdr_t *hdr = &ipkt->hdr;
+    /* filter only PROBE REQ packets */
+    subtype = hdr->frame_ctrl;
+    subtype = subtype & 0xF0;
+    if (subtype != 0x40) {
+        // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
+        return;
+    }
 
     int res = xRingbufferSend(packetRingBuffer, buff, ppkt->rx_ctrl.sig_len, 0);
     if (res != pdTRUE) {
@@ -160,11 +172,12 @@ void app_main(void)
 
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
 
     // Initialize RingBuffer
     ESP_LOGD(TAG, "dim ringbuf: %d", RINGBUF_SIZE);

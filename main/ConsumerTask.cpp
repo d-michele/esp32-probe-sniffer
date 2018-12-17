@@ -91,17 +91,17 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     /* filter only PROBE REQ packets */
     subtype = hdr->frame_ctrl;
     subtype = subtype & 0xF0;
-    if (subtype != 0x40) {
-        // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
-        return false;
-    }
+    // if (subtype != 0x40) {
+    //     // ESP_LOGD(TAG, "remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
+    //     return false;
+    // }
     // i don't know why but last 4 bytes (of FCS i think) are different for any ESP receiver
     int payloadSize = ppkt->rx_ctrl.sig_len - 4;
     // debug
     // dumpPacket(ppkt, payloadSize);
-    uint8_t *payloadHash = new uint8_t[payloadSize];
-    bzero(payloadHash, payloadSize);
-    memcpy(payloadHash, ppkt->payload, payloadSize);
+    // uint8_t *payloadHash = new uint8_t[payloadSize];
+    // bzero(payloadHash, payloadSize);
+    // memcpy(payloadHash, ppkt->payload, payloadSize);
     // extracting packet info from the payload
     rssi = ppkt->rx_ctrl.rssi;
     // take channel byte and filter useful bits
@@ -117,9 +117,8 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     if (ssidLen <= 32)  {
         memcpy(buf, &(ppkt->payload[26]), (size_t) ppkt->payload[25]);
         buf[ppkt->payload[25]] = '\0';
-        // ESP_LOGD(TAG, "%s", buf);
+        ESP_LOGD(TAG, "%s", buf);
         ssid = buf;
-        ESP_LOGD(TAG, "ssidLen %d", ssidLen);
     } else {
         ssid = "";
     }

@@ -74,6 +74,9 @@ ProbeReq ProbeReq::Builder::build() {
 			sequence_number, move(md5digest), timestamp);
 }
 
+// cJSON ProbeReq::toJson() {
+	// cJSON *root = cJSON_CreateObject();
+// }
 
 
 std::ostream& operator<<(ostream& os, const ProbeReq& probeReq){

@@ -36,7 +36,7 @@ esp_err_t connect_to_server(int *sockPtr) {
     // wait to be connected on the AP in the case of new connection or connection lost
     xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
             false, true, portMAX_DELAY);
-    bzero(&serverAddress, sizeof(serverAddress));
+    memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
     inet_pton(AF_INET, SERVER_ADDR, &serverAddress.sin_addr.s_addr);
     serverAddress.sin_port = htons((u16_t) atoi(SERVER_PORT));

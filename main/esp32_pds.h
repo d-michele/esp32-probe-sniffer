@@ -11,11 +11,13 @@
 #define	WIFI_CHANNEL_SWITCH_INTERVAL	(500)
 #define FIXED_CHANNEL 1                                /* fixed channel to sniff */
 #define STACK_SIZE 4096                                 /* consumer task size */
-#define RINGBUF_SIZE 4096                               /* size of ringbuffer */
+#define RINGBUF_SIZE 10240                               /* size of ringbuffer */
 #define SERVER_ADDR         CONFIG_SERVER_ADDRESS
 #define SERVER_PORT         CONFIG_SERVER_PORT
 #define SNTP_SERVER_IP 		CONFIG_SNTP_SERVER_IP
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
+// #define SNTP_UPDATE_DELAY           15000
+
 
 /* logging tag */
 extern const char *TAG;
