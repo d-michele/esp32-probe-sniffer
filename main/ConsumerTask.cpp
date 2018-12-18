@@ -96,11 +96,12 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     //     return false;
     // }
     // i don't know why but last 4 bytes (of FCS i think) are different for any ESP receiver
-    int payloadSize = ppkt->rx_ctrl.sig_len - 4;
+    // also other 24 byte are different
+    int payloadSize = ppkt->rx_ctrl.sig_len - 28;
     // debug
     // dumpPacket(ppkt, payloadSize);
-    // uint8_t *payloadHash = new uint8_t[payloadSize];
-    // bzero(payloadHash, payloadSize);
+    uint8_t *payloadHash = new uint8_t[payloadSize];
+    // memset(payloadHash, 0, payloadSize);
     // memcpy(payloadHash, ppkt->payload, payloadSize);
     // extracting packet info from the payload
     rssi = ppkt->rx_ctrl.rssi;
@@ -110,7 +111,7 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     // ***ToDo correct the timestamp***
     // i don't know why but last 4 bytes (of CRC i think) are different for any ESP receiver
     // calculating md5 packet digest
-    mbedtls_md5(    (const unsigned char *) ppkt->payload, payloadSize, md5digest);
+    mbedtls_md5((const unsigned char *) ppkt->payload, payloadSize, md5digest);
     // copy from ssid begin a length of ssid length specified in the payload 
     ssidLen = ppkt->payload[25];
     ESP_LOGD(TAG, "ssid len: %d", ssidLen);
