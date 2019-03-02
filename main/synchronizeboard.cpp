@@ -56,3 +56,17 @@ void SynchronizeBoard::print_time(void)
         vTaskDelay(1*100/portTICK_PERIOD_MS);
     }
 }
+
+struct tm SynchronizeBoard::getTime(void) {
+	time_t now;
+	struct tm timeinfo;
+	
+	time(&now);
+    localtime_r(&now, &timeinfo);
+
+    return timeinfo;
+}
+
+void SynchronizeBoard::tmToCStr(struct tm time, char (&timestampCStr)[64]) {
+	strftime(timestampCStr, sizeof(timestampCStr), "%c", &time);
+}

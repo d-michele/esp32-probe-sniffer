@@ -13,10 +13,13 @@
 #include "80211Packet.h"
 #include "string.h"
 #include "mbedtls/md5.h"
+#include "CppJSON.h"
+#include "cJSON.h"
 #include "ProbeReq.h"
 #include "socketUtils.h"
 #include "esp_heap_trace.h"
 #include "esp32_pds.h"
+#include "synchronizeboard.h"
 
 // #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
 

@@ -43,7 +43,7 @@ void ConsumerTask::consume(void *args) {
         // vTaskDelay(portTICK_PERIOD_MS);
         taskYIELD();
         void *probePacket = xRingbufferReceive(packetRingBuffer, &packetSize, portMAX_DELAY);
-        if (probePacket == nullptr) {
+        if (probePacket == NULL) {
             ESP_LOGE(TAG, "Error retrieving element from queue\n");
             continue;
         }
@@ -57,20 +57,28 @@ void ConsumerTask::consume(void *args) {
             continue;
         }
         cout << probePtr.get();
-        stringstream ss;
-        ss << *probePtr;
-        string str = ss.str();
-        char *abc = new char[str.length() + 1];
-        strcpy(abc, str.c_str());
-        // ESP_LOGD(TAG, "%s", abc);
-        while (send(socket, abc, strlen(abc), 0) == -1) {
-            ESP_LOGE(TAG, "Error sending sniffed packet info to server");
-            close(socket);
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-            // ESP_ERROR_CHECK(connect_to_server(&socket));
-            connect_to_server(&socket);
+        // stringstream ss;
+        // ss << *probePtr;
+        // string str = ss.str();
+        // char *sendStr = new char[str.length() + 1];
+        // strcpy(sendStr, str.c_str());
+        unique_ptr<CppJSON> toSendCppJSONPtr = probePtr->toJson();
+        char *sendStr = cJSON_Print(toSendCppJSONPtr->jsonObj);
+        // char *sendStr = NULL;
+        if (sendStr == NULL)
+        {
+            ESP_LOGW(TAG, "Failed to send JSON");
+        } else {
+            // ESP_LOGD(TAG, "%s", sendStr);
+            while (send(socket, sendStr, strlen(sendStr), 0) == -1) {
+                ESP_LOGE(TAG, "Error sending sniffed packet info to server");
+                close(socket);
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+                ESP_ERROR_CHECK(connect_to_server(&socket));
+                // connect_to_server(&socket);
+            }
+            free(sendStr);
         }
-        delete[] abc;
         vRingbufferReturnItem(packetRingBuffer, probePacket);
         ESP_LOGD(TAG, "sended remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
     }
@@ -85,7 +93,8 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     unsigned char md5digest[16];
     string ssid;
 
-    const wifi_promiscuous_pkt_t *ppkt = (wifi_promiscuous_pkt_t *)probePacket;
+    const attached_timestamp_packet_t *ppkt_with_tm = (attached_timestamp_packet_t*) probePacket;
+    const wifi_promiscuous_pkt_t *ppkt = &(ppkt_with_tm->packet);
     const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
     const wifi_ieee80211_mac_hdr_t *hdr = &ipkt->hdr;
     /* filter only PROBE REQ packets */
@@ -100,7 +109,7 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     int payloadSize = ppkt->rx_ctrl.sig_len - 28;
     // debug
     // dumpPacket(ppkt, payloadSize);
-    uint8_t *payloadHash = new uint8_t[payloadSize];
+    // uint8_t *payloadHash = new uint8_t[payloadSize];
     // memset(payloadHash, 0, payloadSize);
     // memcpy(payloadHash, ppkt->payload, payloadSize);
     // extracting packet info from the payload
@@ -108,7 +117,6 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
     // take channel byte and filter useful bits
     channel = ppkt->rx_ctrl.channel;
     channel &= 0xF0;
-    // ***ToDo correct the timestamp***
     // i don't know why but last 4 bytes (of CRC i think) are different for any ESP receiver
     // calculating md5 packet digest
     mbedtls_md5((const unsigned char *) ppkt->payload, payloadSize, md5digest);
@@ -136,7 +144,7 @@ bool ConsumerTask::consumeSniffedPacket(void *probePacket, unique_ptr<ProbeReq>&
                 .withBssid(hdr->addr3)
                 .withMd5digest(md5digest)
                 .withSequenceNumber(hdr->sequence_number)
-                .withTimestamp(ppkt->rx_ctrl.timestamp)
+                .withTimestamp(ppkt_with_tm->timestamp)
                 .build()
             ));
 

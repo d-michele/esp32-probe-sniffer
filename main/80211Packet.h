@@ -45,6 +45,11 @@ typedef struct {
 
 }wifi_iee80211_mac_body_t;
 
+typedef struct {
+	struct tm timestamp;
+	wifi_promiscuous_pkt_t packet;
+} attached_timestamp_packet_t;
+
 const char *wifi_sniffer_packet_type2str(wifi_promiscuous_pkt_type_t type);
 string packetSubtype2Str(uint8_t subtype);
 void dumpPacket(const wifi_promiscuous_pkt_t *ppkt, int payloadSize);

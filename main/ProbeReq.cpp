@@ -25,15 +25,14 @@ ProbeReq::Builder& ProbeReq::Builder::withRssi(int8_t rssi) {
 }
 
 ProbeReq::Builder& ProbeReq::Builder::withSsid(const char *ssid, uint8_t ssidLen) {
-    // char buf[32+1];
-    // memcpy(buf, ssid, ssidLen);
 	string ssidStr(ssid, (size_t) ssidLen);
 	this->ssid = move (ssidStr);
 	this->ssidLen = ssidLen;
-    // buf[ssidLen] = '\0';
-	// this->ssid = buf;
-	// cout << "ssid:" << this->ssid << " ssidLen: " << dec << this->ssidLen << endl;
-	// delete[] buf;
+	return *this;
+}
+
+ProbeReq::Builder& ProbeReq::Builder::withSsid2(string ssid) {
+	this->ssid = ssid;
 	return *this;
 }
 
@@ -58,7 +57,7 @@ ProbeReq::Builder& ProbeReq::Builder::withMd5digest(const unsigned char md5diges
 	return *this;
 }
 
-ProbeReq::Builder& ProbeReq::Builder::withTimestamp(uint32_t timestamp) {
+ProbeReq::Builder& ProbeReq::Builder::withTimestamp(struct tm timestamp) {
 	this->timestamp = timestamp;
 	return *this;
 }
@@ -68,16 +67,77 @@ ProbeReq::Builder& ProbeReq::Builder::withSequenceNumber(uint16_t sequence_numbe
 	return *this;
 }
 
-ProbeReq ProbeReq::Builder::build() {
+ProbeReq ProbeReq::Builder::build(void) {
 	return ProbeReq(type, subtype, channel, rssi, ssid, ssidLen,
 			move(destAddress), move(sourceAddress), move(bssid),
 			sequence_number, move(md5digest), timestamp);
 }
 
-// cJSON ProbeReq::toJson() {
-	// cJSON *root = cJSON_CreateObject();
-// }
+unique_ptr<CppJSON> createTmJSON(struct tm timestamp) {
+	unique_ptr<CppJSON> tmJSONPtr(new CppJSON);
+	if (tmJSONPtr->jsonObj == NULL)
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_sec", timestamp.tm_sec) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_min", timestamp.tm_min) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_hour", timestamp.tm_hour) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_mday", timestamp.tm_mday) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_mon", timestamp.tm_mon) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_year", timestamp.tm_year) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_wday", timestamp.tm_wday) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_yday", timestamp.tm_yday) == NULL) 
+		return nullptr;
+	if (cJSON_AddNumberToObject(tmJSONPtr->jsonObj, "tm_isdst", timestamp.tm_isdst) == NULL)
+		return nullptr;
 
+	return tmJSONPtr;
+}
+
+unique_ptr<CppJSON> ProbeReq::toJson(void) {
+	unique_ptr<CppJSON> rootPtr(new CppJSON);
+	char sourceAddressCStr[17+1];
+	char md5digestCStr[16+1];
+	stringstream ss;
+
+	for(size_t i = 0; i < sourceAddress.size(); i++) {
+		ss << uppercase << setfill('0') << setw(2) << hex 
+				<< static_cast<unsigned int>(sourceAddress[i]);
+		if (i != 5) {
+			ss << ':';
+		}
+	}
+	strcpy (sourceAddressCStr, ss.str().c_str());
+	if (cJSON_AddStringToObject(rootPtr->jsonObj, ProbeReq::Keys::SADDR, sourceAddressCStr) == NULL)
+		return nullptr;
+	if (cJSON_AddStringToObject(rootPtr->jsonObj, ProbeReq::Keys::SSID, ssid.c_str()) == NULL)
+		return nullptr;
+	unique_ptr<CppJSON> timestampPtr = createTmJSON(timestamp);
+	if (timestampPtr == nullptr)
+		return nullptr;
+	cJSON_AddItemToObject(rootPtr->jsonObj, ProbeReq::Keys::TIMESTAMP, timestampPtr->jsonObj);
+	// set NULL so when timestampPtr goes out of scope in CppJSON we don't delete the timestamp cJSON struct
+	// from now cJSON struct is ownership of rootPtr's cJSON
+	timestampPtr->jsonObj = NULL;
+
+	ss.str("");
+	ss.clear();
+	for (int i = 0; i < 16; i++) {
+		ss << nouppercase << setfill('0') << setw(2) << hex << static_cast<unsigned int>(md5digest[i]);
+    }
+	strcpy (md5digestCStr, ss.str().c_str());
+	if (cJSON_AddStringToObject(rootPtr->jsonObj, ProbeReq::Keys::MD5HASH, md5digestCStr) == NULL)
+		return nullptr;
+	if (cJSON_AddNumberToObject(rootPtr->jsonObj, ProbeReq::Keys::RSSI, rssi) == NULL)
+		return nullptr;
+
+	return rootPtr;
+}
 
 std::ostream& operator<<(ostream& os, const ProbeReq& probeReq){
     os << "SUBTYPE=" << packetSubtype2Str(probeReq.subtype) << ", ";
@@ -106,7 +166,9 @@ std::ostream& operator<<(ostream& os, const ProbeReq& probeReq){
 		if (iter != probeReq.bssid.end() - 1)
 			os << ":";
 	}
-	os << ", timestamp=" << dec << probeReq.timestamp;
+	char timestamp[64];
+	SynchronizeBoard::tmToCStr(probeReq.timestamp, timestamp);
+	os << ", timestamp=" << dec << timestamp;
 	os << ", seq num: " << dec << probeReq.sequence_number;
 	os << ", md5hash: ";
 	for (int i = 0; i < 16; i++) {
@@ -116,3 +178,4 @@ std::ostream& operator<<(ostream& os, const ProbeReq& probeReq){
 
     return os;
 }
+	

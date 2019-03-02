@@ -135,6 +135,8 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
             // false, true, portMAX_DELAY);
     // Todo try to remove it beacause of mask of promiscuous mode
     uint8_t subtype;
+    struct tm timestamp = SynchronizeBoard::getTime();
+
     if (type != WIFI_PKT_MGMT) {
         return;
     }
@@ -152,14 +154,19 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
         return;
     }
 
-    int res = xRingbufferSend(packetRingBuffer, buff, ppkt->rx_ctrl.sig_len, 0);
+    attached_timestamp_packet_t *ppkt_with_tm = (attached_timestamp_packet_t*) ::operator new(
+            sizeof(attached_timestamp_packet_t) + ppkt->rx_ctrl.sig_len);
+    printf("%2X:%2X:%2X:%2X:%2X:%2X", hdr->addr1[0], hdr->addr1[1], hdr->addr1[2], hdr->addr1[3], hdr->addr1[4], hdr->addr1[5]);
+    ppkt_with_tm->timestamp = timestamp;
+    memcpy(&ppkt_with_tm->packet, ppkt, ppkt->rx_ctrl.sig_len);
+    int res = xRingbufferSend(packetRingBuffer, ppkt_with_tm, ppkt_with_tm->packet.rx_ctrl.sig_len + sizeof(struct tm), 0);
     if (res != pdTRUE) {
         ESP_LOGW(TAG, "Error during ringBuffer insertion buffer full\n");
     } else {
         // ESP_LOGD(TAG, "(Core %d) Paket inserted, size: %d", xPortGetCoreID(), ppkt->rx_ctrl.sig_len);
         ESP_LOGD(TAG, "inserted remaining size %d", xRingbufferGetCurFreeSize(packetRingBuffer));
     }
-
+    delete ppkt_with_tm;
     // esp_wifi_set_promiscuous(false);
     // xSemaphoreGive(chanMutex);
 }

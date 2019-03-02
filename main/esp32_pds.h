@@ -17,6 +17,7 @@
 #define SNTP_SERVER_IP 		CONFIG_SNTP_SERVER_IP
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG                   /* level of logging */
 // #define SNTP_UPDATE_DELAY           15000
+// #define _countof(a) (sizeof(a)/sizeof(*(a)))
 
 
 /* logging tag */
