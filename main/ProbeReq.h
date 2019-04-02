@@ -29,6 +29,7 @@ public:
 		static constexpr const char* RSSI = "RSSI";
 		static constexpr const char* TIMESTAMP = "TIMESTAMP";
 		static constexpr const char* MD5HASH = "MD5HASH";
+		static constexpr const char* SEQUENCE_NUM = "SEQUENCE_NUM";
 	};
 
 	/* ProbeReq class builder */

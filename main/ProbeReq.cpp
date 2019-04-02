@@ -135,7 +135,7 @@ unique_ptr<CppJSON> ProbeReq::toJson(void) {
 		return nullptr;
 	if (cJSON_AddNumberToObject(rootPtr->jsonObj, ProbeReq::Keys::RSSI, rssi) == NULL)
 		return nullptr;
-	if (cJSON_AddNumberToObject(rootPtr->jsonObj, ProbeReq::Keys::SEQUENCE_NUM) == NULL)
+	if (cJSON_AddNumberToObject(rootPtr->jsonObj, ProbeReq::Keys::SEQUENCE_NUM, sequence_number) == NULL)
 		return nullptr;
 
 	return rootPtr;
