@@ -27,11 +27,13 @@ int espx_last_socket_errno(int socket) {
     return ret;
 }
 
-esp_err_t connect_to_server(int *sockPtr) {
+esp_err_t connect_to_server(int *sockPtr, bool handshake) {
     int errCode;
     int ret_conn;
     struct sockaddr_in serverAddress;
     int sErrCode;
+    ssize_t nwritten;
+    ssize_t nread;
 
     // wait to be connected on the AP in the case of new connection or connection lost
     xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
@@ -60,9 +62,24 @@ esp_err_t connect_to_server(int *sockPtr) {
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "connection done on socket %d\n", sock);
-    const char *msg = "ciao";
-    sendn(sock, msg, sizeof(msg), 0);
-    *sockPtr = sock;
+    if (handshake) {
+        uint8_t id = CONFIG_ESP32_ID;
+        nwritten = send(sock, &id, sizeof(id), NO_FLAGS);
+        if (nwritten < sizeof(id)) {
+            ESP_LOGE(TAG, "error while sending Id");
+            return ESP_FAIL;
+        }
+        char response[2 + 1];
+        nread = read(sock, response, 2 * sizeof(unsigned char));
+        if (nread < 2 * sizeof(unsigned char)) {
+            ESP_LOGE(TAG, "error while receiving response");
+            return ESP_FAIL;
+        }
+        response[2] = '\0';
+
+        ESP_LOGD(TAG, "Response: %s", response);
+    }
     
+    *sockPtr = sock;
     return ESP_OK;
 }

@@ -27,16 +27,13 @@ void SynchronizeBoard::obtain_time(void)
 	// wait for time to be set
 	time_t now = 0;
 	struct tm timeinfo;
-	int retry = 0;
-	const int retry_count = 10;
 	memset(&timeinfo, 0, sizeof(timeinfo));
-	while(timeinfo.tm_year < (2018 - 1900) && ++retry < retry_count) {
+	while(timeinfo.tm_year < (2018 - 1900)) {
 		//ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
 		vTaskDelay(2000 / portTICK_PERIOD_MS);
 		time(&now);
 		localtime_r(&now, &timeinfo);
 	}
-	// TODO gestire caso in cui i 10 tentivi falliscono
 	setenv("TZ", "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00", 1);
 	tzset();
 }

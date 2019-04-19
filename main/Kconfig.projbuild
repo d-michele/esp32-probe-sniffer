@@ -1,22 +1,11 @@
 menu "Application Configuration"
 
-choice ESP_WIFI_MODE
-    prompt "AP or STA"
-    default ESP_WIFI_IS_STATION
+config ESP32_ID
+    int "ESP32 Id"
+    default -1
     help
-        Whether the esp32 is softAP or station.
-
-config ESP_WIFI_IS_SOFTAP
-    bool "SoftAP"
-config ESP_WIFI_IS_STATION
-    bool "Station"
-endchoice
-
-config ESP_WIFI_MODE_AP
-    bool
-    default y if ESP_WIFI_IS_SOFTAP
-    default n if ESP_WIFI_IS_STATION
-
+	Identification number needed to distinguish each board from the others (must be different for any board).
+	
 config ESP_WIFI_SSID
     string "WiFi SSID"
     default "myssid"

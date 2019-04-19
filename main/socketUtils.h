@@ -10,6 +10,8 @@
 #include "esp_log.h"
 #include "esp32_pds.h"
 
+#define NO_FLAGS 0
+
 using namespace std;
 
 /**
@@ -36,6 +38,6 @@ ssize_t sendn (int fd, const void *vptr, size_t n, int flags);
   *    - ESP_OK: succeed
   *	   - ESP_FAIL: fail
   */
-esp_err_t connect_to_server(int *sockPtr);
+esp_err_t connect_to_server(int *sockPtr, bool handshake);
 
 #endif //PDSPROJECT_SOCKETUTILS_H

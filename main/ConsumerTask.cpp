@@ -74,7 +74,7 @@ void ConsumerTask::consume(void *args) {
                 ESP_LOGE(TAG, "Error sending sniffed packet info to server");
                 close(socket);
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
-                ESP_ERROR_CHECK(connect_to_server(&socket));
+                ESP_ERROR_CHECK(connect_to_server(&socket, false));
                 // connect_to_server(&socket);
             }
             free(sendStr);

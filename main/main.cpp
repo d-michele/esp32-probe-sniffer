@@ -97,11 +97,9 @@ void wifi_init_sta(void)
 {
     wifi_event_group = xEventGroupCreate();
     tcpip_adapter_init();
-    ESP_LOGI(TAG, "ciao");
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL) );
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_LOGI(TAG, "ciaone");
     wifi_config_t wifi_config;
     memset(&wifi_config,0, sizeof(wifi_config));
     memcpy(wifi_config.ap.ssid ,ESP_WIFI_SSID, sizeof(ESP_WIFI_SSID));
@@ -113,7 +111,6 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
     //connecting the station to wifi
     ESP_ERROR_CHECK(esp_wifi_start() );
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
     ESP_LOGI(TAG, "connect to ap SSID:%s password:%s", 
             ESP_WIFI_SSID, ESP_WIFI_PASS);
     
@@ -121,11 +118,14 @@ void wifi_init_sta(void)
     ESP_LOGD(TAG, "chan: %d second chan: %d", wifi_connection_chan, wifi_connection_second_chan);
     
     //setting sniffer
+    ESP_LOGI(TAG, "setting promiscuous mode");
     wifi_promiscuous_filter_t promFilter;
     promFilter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT;
     esp_wifi_set_promiscuous_filter(&promFilter);
     esp_wifi_set_promiscuous(false);
     esp_wifi_set_promiscuous_rx_cb(&wifi_sniffer_packet_handler);    
+    ESP_LOGI(TAG, "wifi_init_sta finished.");
+
 }
 	
 void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
@@ -171,11 +171,10 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
     // xSemaphoreGive(chanMutex);
 }
 
-void app_main(void)
-{
-    #ifndef FIXED_CHANNEL
-       uint8_t channel = 1;
-    #endif
+void esp_initialization() {
+    // #ifndef FIXED_CHANNEL
+    //    uint8_t channel = 1;
+    // #endif
 
     //Initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -195,28 +194,29 @@ void app_main(void)
     // Wifi mode STATION
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
-    // wifi_sniffer_init();
     // Wait until the device is connected to the wifi
     xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
             false, true, portMAX_DELAY);
-    //ESP_LOGI(TAG, "Fase di connessione terminata"); // togliere
     SynchronizeBoard::obtain_time();
-    // SynchronizeBoard::print_time();
-    int socket = -1;
-    ESP_ERROR_CHECK(connect_to_server(&socket));
     gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+
+    // #ifdef FIXED_CHANNEL
+    //     wifi_sniffer_set_channel(FIXED_CHANNEL);
+    //     ESP_LOGI(TAG, "Fixed channel %d", FIXED_CHANNEL);
+    // #endif
+}
+
+void app_main(void)
+{
     int level = 0;
 
-    #ifdef FIXED_CHANNEL
-        wifi_sniffer_set_channel(FIXED_CHANNEL);
-        ESP_LOGI(TAG, "Fixed channel %d", FIXED_CHANNEL);
-    #endif
+    esp_initialization();
+    int socket = -1;
+    ESP_ERROR_CHECK(connect_to_server(&socket, true));
 
-    
     // ToDo taskRAM size e ringbuf size optimization
     ConsumerTask consumerTask(socket, packetRingBuffer);
-
-
+    // enable promiscuous mode
     esp_wifi_set_promiscuous(true);
     while (true) {
         #ifndef FIXED_CHANNEL
@@ -232,10 +232,5 @@ void app_main(void)
             gpio_set_level(GPIO_NUM_2, level);
             level = !level;
             vTaskDelay(500 / portTICK_PERIOD_MS);
-
-            // esp_wifi_set_promiscuous(false);
-            // ESP_ERROR_CHECK(esp_ wifi_start());
-            // xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
-                    // false, true, portMAX_DELAY);
     }
 }
