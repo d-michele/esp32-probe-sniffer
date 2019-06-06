@@ -3,7 +3,7 @@
 #include "lwip/sys.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
-// #include "esp_log.h"
+#include "esp_log.h"
 #include <stdio.h>
 #include <string.h>
 #include "apps/sntp/sntp.h"
@@ -28,6 +28,7 @@ void SynchronizeBoard::obtain_time(void)
 	time_t now = 0;
 	struct tm timeinfo;
 	memset(&timeinfo, 0, sizeof(timeinfo));
+    ESP_LOGD(TAG, "Getting Time from NTP server");
 	while(timeinfo.tm_year < (2018 - 1900)) {
 		//ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
 		vTaskDelay(2000 / portTICK_PERIOD_MS);
